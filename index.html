@@ -1,0 +1,1884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transformer Playground — Attention Is All You Need</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #16161f;
+    --bg4: #1c1c28;
+    --surface: #1e1e2e;
+    --surface2: #252538;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8e8f0;
+    --text2: #9090a8;
+    --text3: #5a5a72;
+    --accent: #a78bfa;
+    --accent2: #7c3aed;
+    --accent-glow: rgba(167,139,250,0.15);
+    --teal: #2dd4bf;
+    --teal-dim: rgba(45,212,191,0.12);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251,191,36,0.12);
+    --coral: #f87171;
+    --coral-dim: rgba(248,113,113,0.12);
+    --green: #4ade80;
+    --green-dim: rgba(74,222,128,0.1);
+    --mono: 'DM Mono', monospace;
+    --serif: 'Fraunces', serif;
+    --sans: 'DM Sans', sans-serif;
+    --radius: 10px;
+    --radius-lg: 16px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(167,139,250,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(167,139,250,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ─── SIDEBAR ─── */
+  .sidebar {
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .sidebar-header {
+    padding: 28px 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-title {
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+  }
+
+  .sidebar-sub {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 4px;
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+  }
+
+  .nav-section {
+    padding: 16px 12px;
+    flex: 1;
+  }
+
+  .nav-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0 8px;
+    margin-bottom: 6px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 13.5px;
+    color: var(--text2);
+    transition: all 0.15s;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+    position: relative;
+  }
+
+  .nav-item:hover { color: var(--text); background: var(--bg3); }
+
+  .nav-item.active {
+    color: var(--accent);
+    background: var(--accent-glow);
+    border-color: rgba(167,139,250,0.2);
+  }
+
+  .nav-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-footer {
+    padding: 14px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text3);
+    font-family: var(--mono);
+  }
+
+  /* ─── MAIN ─── */
+  .main {
+    padding: 40px 48px;
+    max-width: 960px;
+  }
+
+  .page { display: none; }
+  .page.active { display: block; animation: fadeIn 0.2s ease; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* ─── PAGE HEADER ─── */
+  .page-header { margin-bottom: 32px; }
+
+  .page-tag {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .page-title {
+    font-family: var(--serif);
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    margin-bottom: 10px;
+  }
+
+  .page-desc {
+    font-size: 14px;
+    color: var(--text2);
+    max-width: 580px;
+    line-height: 1.7;
+  }
+
+  /* ─── CARDS ─── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    font-family: var(--mono);
+  }
+
+  .card-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card-grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  /* ─── METRICS ─── */
+  .metric {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .metric-label { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-bottom: 4px; }
+  .metric-value { font-size: 26px; font-weight: 300; font-family: var(--serif); color: var(--text); }
+  .metric-value span { font-size: 13px; color: var(--text3); margin-left: 2px; }
+
+  /* ─── FORMULA ─── */
+  .formula {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    color: var(--teal);
+    margin: 10px 0;
+    letter-spacing: 0.02em;
+    overflow-x: auto;
+  }
+
+  /* ─── SLIDERS ─── */
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 10px 0;
+  }
+  .slider-label {
+    font-size: 12px;
+    color: var(--text2);
+    min-width: 150px;
+    font-family: var(--mono);
+  }
+  .slider-val {
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--mono);
+    color: var(--accent);
+    min-width: 44px;
+    text-align: right;
+  }
+
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 3px;
+    background: var(--bg4);
+    border-radius: 4px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(167,139,250,0.5);
+  }
+  input[type=range]:disabled { opacity: 0.3; }
+
+  /* ─── TOKENS ─── */
+  .token-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  .token {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    border: 1px solid var(--border2);
+    background: var(--bg4);
+    color: var(--text2);
+    transition: all 0.15s;
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+  }
+  .token:hover { color: var(--text); border-color: var(--accent); }
+  .token.active {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* ─── ATTENTION BARS ─── */
+  .attn-bars {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    height: 100px;
+    margin: 16px 0 8px;
+  }
+  .attn-bar-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+    justify-content: flex-end;
+  }
+  .attn-bar {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    transition: height 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    position: relative;
+  }
+  .attn-bar-label {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text3);
+  }
+  .attn-bar-pct {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--text3);
+    margin-bottom: 2px;
+  }
+
+  /* ─── ATTENTION MATRIX ─── */
+  .attn-matrix-wrap {
+    overflow-x: auto;
+    margin: 14px 0;
+  }
+  .attn-matrix {
+    display: inline-grid;
+    gap: 2px;
+  }
+  .attn-cell {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-family: var(--mono);
+    font-weight: 500;
+    transition: all 0.2s;
+    cursor: default;
+  }
+  .attn-cell:hover { transform: scale(1.15); z-index: 10; position: relative; }
+  .attn-axis-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text3);
+    width: 36px;
+    height: 36px;
+  }
+
+  /* ─── BLEU BARS ─── */
+  .bleu-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .bleu-name { font-size: 12px; font-family: var(--mono); color: var(--text2); min-width: 200px; }
+  .bleu-track {
+    flex: 1;
+    height: 20px;
+    background: var(--bg3);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .bleu-fill {
+    height: 100%;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    font-size: 10px;
+    font-family: var(--mono);
+    font-weight: 500;
+    transition: width 0.8s cubic-bezier(0.22,1,0.36,1);
+  }
+  .bleu-score { font-size: 13px; font-family: var(--mono); font-weight: 500; min-width: 40px; text-align: right; }
+
+  /* ─── ARCH BOXES ─── */
+  .arch-stack { display: flex; flex-direction: column; gap: 0; align-items: center; }
+  .arch-box {
+    width: 100%;
+    padding: 9px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: var(--mono);
+    text-align: center;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .arch-arrow {
+    font-size: 16px;
+    color: var(--text3);
+    padding: 2px 0;
+    line-height: 1;
+  }
+  .arch-enc { background: rgba(124,58,237,0.18); border: 1px solid rgba(124,58,237,0.35); color: #c4b5fd; }
+  .arch-dec { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.25); color: #fde68a; }
+  .arch-shared { background: rgba(45,212,191,0.1); border: 1px solid rgba(45,212,191,0.25); color: #5eead4; }
+  .arch-out { background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.2); color: #86efac; }
+
+  /* ─── HEADS ─── */
+  .heads-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 12px 0;
+  }
+  .head-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .head-card:hover { border-color: var(--border2); background: var(--bg4); }
+  .head-card.active { border-color: var(--accent); background: var(--accent-glow); }
+  .head-num { font-size: 18px; font-family: var(--serif); font-weight: 700; margin-bottom: 3px; }
+  .head-role { font-size: 10px; font-family: var(--mono); color: var(--text3); line-height: 1.3; }
+  .head-card.active .head-role { color: var(--accent); }
+
+  /* ─── POSITIONAL CANVAS ─── */
+  #pe-canvas {
+    display: block;
+    width: 100%;
+    border-radius: var(--radius);
+    margin: 12px 0;
+  }
+
+  /* ─── INFO BOXES ─── */
+  .info-box {
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 13px;
+    line-height: 1.65;
+    margin: 10px 0;
+  }
+  .info-box.purple { background: var(--accent-glow); border: 1px solid rgba(167,139,250,0.2); color: #c4b5fd; }
+  .info-box.teal { background: var(--teal-dim); border: 1px solid rgba(45,212,191,0.2); color: var(--teal); }
+  .info-box.amber { background: var(--amber-dim); border: 1px solid rgba(251,191,36,0.2); color: var(--amber); }
+  .info-box.coral { background: var(--coral-dim); border: 1px solid rgba(248,113,113,0.2); color: var(--coral); }
+  .info-box.green { background: var(--green-dim); border: 1px solid rgba(74,222,128,0.2); color: var(--green); }
+  .info-box.neutral { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); }
+
+  /* ─── TABLE ─── */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr.highlight td { color: var(--accent); background: var(--accent-glow); }
+  tr:hover td { background: var(--bg3); }
+
+  /* ─── PILL TAG ─── */
+  .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+  .pill-purple { background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(167,139,250,0.3); }
+  .pill-teal { background: var(--teal-dim); color: var(--teal); border: 1px solid rgba(45,212,191,0.3); }
+  .pill-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,0.3); }
+
+  /* ─── QUIZ ─── */
+  .quiz-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text2);
+    background: var(--bg3);
+    transition: all 0.15s;
+  }
+  .quiz-option:hover { border-color: var(--border2); color: var(--text); }
+  .quiz-option.correct { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+  .quiz-option.wrong { border-color: var(--coral); background: var(--coral-dim); color: var(--coral); }
+  .quiz-option.disabled { pointer-events: none; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border2);
+    background: var(--bg4);
+    color: var(--text2);
+    font-size: 12.5px;
+    font-family: var(--mono);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { color: var(--text); border-color: var(--accent); background: var(--accent-glow); }
+  .btn-accent {
+    background: var(--accent-glow);
+    border-color: rgba(167,139,250,0.4);
+    color: var(--accent);
+  }
+
+  /* ─── SEPARATOR ─── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+  /* ─── SANDBOX ─── */
+  #sandbox-input {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    resize: vertical;
+    min-height: 80px;
+  }
+  #sandbox-input:focus { border-color: var(--accent); }
+
+  .sandbox-output {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+    min-height: 60px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    margin-top: 10px;
+  }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--surface2); }
+
+  /* ─── GLOW ACCENTS ─── */
+  .glow-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    display: inline-block;
+    margin-right: 6px;
+  }
+
+  /* ─── COMPARISON GRID ─── */
+  .cmp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin: 12px 0;
+  }
+  .cmp-cell {
+    background: var(--bg3);
+    padding: 12px 14px;
+    font-size: 12px;
+    font-family: var(--mono);
+  }
+  .cmp-head {
+    background: var(--surface);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .main { padding: 24px 20px; }
+    .heads-grid { grid-template-columns: repeat(2, 1fr); }
+    .card-grid2, .card-grid3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- ─── SIDEBAR ─── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">Transformer<br>Playground</div>
+      <div class="sidebar-sub">Attention Is All You Need · 2017</div>
+    </div>
+    <nav class="nav-section">
+      <div class="nav-label">Explore</div>
+      <div class="nav-item active" onclick="showPage('overview', this)">
+        <div class="nav-icon">◈</div> Overview
+      </div>
+      <div class="nav-item" onclick="showPage('attention', this)">
+        <div class="nav-icon">◎</div> Attention visualizer
+      </div>
+      <div class="nav-item" onclick="showPage('multihead', this)">
+        <div class="nav-icon">⊞</div> Multi-head attention
+      </div>
+      <div class="nav-item" onclick="showPage('positional', this)">
+        <div class="nav-icon">∿</div> Positional encoding
+      </div>
+      <div class="nav-item" onclick="showPage('architecture', this)">
+        <div class="nav-icon">⧉</div> Architecture
+      </div>
+      <div class="nav-label" style="margin-top: 16px;">Evaluate</div>
+      <div class="nav-item" onclick="showPage('results', this)">
+        <div class="nav-icon">▦</div> BLEU results
+      </div>
+      <div class="nav-item" onclick="showPage('complexity', this)">
+        <div class="nav-icon">≈</div> Complexity analysis
+      </div>
+      <div class="nav-item" onclick="showPage('sandbox', this)">
+        <div class="nav-icon">⌘</div> Formula sandbox
+      </div>
+      <div class="nav-item" onclick="showPage('quiz', this)">
+        <div class="nav-icon">✦</div> Concept quiz
+      </div>
+    </nav>
+    <div class="sidebar-footer">NIPS 2017 · Vaswani et al.</div>
+  </aside>
+
+  <!-- ─── MAIN CONTENT ─── -->
+  <main class="main">
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- PAGE: OVERVIEW                             -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="page active" id="page-overview">
+      <div class="page-header">
+        <div class="page-tag">Paper · 2017</div>
+        <h1 class="page-title">Attention Is All You Need</h1>
+        <p class="page-desc">A landmark paper that introduced the Transformer architecture — replacing RNNs and CNNs entirely with self-attention. It redefined sequence modeling and became the foundation of every modern LLM.</p>
+      </div>
+
+      <div class="card-grid3" style="margin-bottom:16px;">
+        <div class="metric"><div class="metric-label">BLEU EN→DE</div><div class="metric-value">28.4</div></div>
+        <div class="metric"><div class="metric-label">BLEU EN→FR</div><div class="metric-value">41.0</div></div>
+        <div class="metric"><div class="metric-label">Training time</div><div class="metric-value">3.5<span>days</span></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Core contribution</div>
+        <div class="info-box purple">
+          The Transformer is the first sequence transduction model based <em>entirely</em> on self-attention — dispensing with recurrence and convolutions. This enables massive parallelization and superior long-range dependency modeling.
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+          <div class="info-box teal">
+            <strong>Before:</strong> RNNs / LSTMs processed tokens sequentially — slow to train, hard to parallelize, struggled with long-range dependencies.
+          </div>
+          <div class="info-box amber">
+            <strong>After:</strong> Transformers process all tokens simultaneously using attention — highly parallel, scales with more compute, attends to any position directly.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Key innovations</div>
+        <table>
+          <thead><tr><th>Mechanism</th><th>What it does</th><th>Why it matters</th></tr></thead>
+          <tbody>
+            <tr><td><span class="pill pill-purple">Scaled dot-product</span></td><td>Attention with √d_k scaling</td><td>Prevents vanishing gradients at large dimensions</td></tr>
+            <tr><td><span class="pill pill-purple">Multi-head attention</span></td><td>h parallel attention functions</td><td>Attends to different representation subspaces</td></tr>
+            <tr><td><span class="pill pill-teal">Positional encoding</span></td><td>Sinusoidal position signal</td><td>Injects sequence order without recurrence</td></tr>
+            <tr><td><span class="pill pill-teal">Residual + LayerNorm</span></td><td>Skip connections around each sub-layer</td><td>Enables training of deep networks</td></tr>
+            <tr><td><span class="pill pill-amber">Masked self-attention</span></td><td>Prevents attending to future tokens</td><td>Preserves auto-regressive property in decoder</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Authors — Google Brain & Research, 2017</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
+          <span class="pill pill-purple">Ashish Vaswani</span>
+          <span class="pill pill-purple">Noam Shazeer</span>
+          <span class="pill pill-purple">Niki Parmar</span>
+          <span class="pill pill-purple">Jakob Uszkoreit</span>
+          <span class="pill pill-teal">Llion Jones</span>
+          <span class="pill pill-teal">Aidan N. Gomez</span>
+          <span class="pill pill-teal">Łukasz Kaiser</span>
+          <span class="pill pill-amber">Illia Polosukhin</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- PAGE: ATTENTION VISUALIZER                 -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="page" id="page-attention">
+      <div class="page-header">
+        <div class="page-tag">Core mechanism</div>
+        <h1 class="page-title">Attention visualizer</h1>
+        <p class="page-desc">Click any word to see how it attends to every other word in the sentence. Weights are softmax-normalized, so they sum to 1.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Scaled dot-product attention</div>
+        <div class="formula">Attention(Q, K, V) = softmax( Q · Kᵀ / √d_k ) · V</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
+          <div class="slider-row">
+            <span class="slider-label">Key dim d_k</span>
+            <input type="range" min="16" max="512" step="16" value="64" id="dk" oninput="updateDk()">
+            <span class="slider-val" id="dk-display">64</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding: 4px 0;">
+            <span class="slider-label" style="color:var(--text3);">Scale 1/√d_k =</span>
+            <span class="slider-val" id="scale-display">0.125</span>
+          </div>
+        </div>
+        <p style="font-size:12px; color:var(--text3); margin-top:6px; font-family:var(--mono);">
+          Large d_k → large dot products → softmax saturation → near-zero gradients. Dividing by √d_k stabilizes training.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Interactive sentence — select a query token</div>
+        <div class="token-row" id="token-row"></div>
+        <div class="attn-bars" id="attn-bars"></div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <span style="font-size:11px; font-family:var(--mono); color:var(--text3);">← key tokens →</span>
+          <span style="font-size:11px; font-family:var(--mono); color:var(--text3);">attention weight</span>
+        </div>
+        <div class="info-box neutral" id="attn-explain" style="font-size:13px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Full attention matrix (all queries × all keys)</div>
+        <p style="font-size:12px; color:var(--text2); margin-bottom:10px;">Row = query token. Column = key token. Brighter = higher attention weight.</p>
+        <div class="attn-matrix-wrap">
+          <div id="attn-matrix-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- PAGE: MULTI-HEAD ATTENTION                 -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="page" id="page-multihead">
+      <div class="page-header">
+        <div class="page-tag">Architecture detail</div>
+        <h1 class="page-title">Multi-head attention</h1>
+        <p class="page-desc">Instead of one attention function, the paper runs h parallel attention heads, each in a lower-dimensional projection. This lets the model jointly attend to different subspaces.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Configure heads</div>
+        <div class="slider-row">
+          <span class="slider-label">Heads (h)</span>
+          <input type="range" min="1" max="16" step="1" value="8" id="heads" oninput="updateHeads()">
+          <span class="slider-val" id="heads-display">8</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">d_model</span>
+          <input type="range" min="128" max="1024" step="128" value="512" id="dmodel" oninput="updateHeads()">
+          <span class="slider-val" id="dmodel-display">512</span>
+        </div>
+        <div class="card-grid3" style="margin-top:14px;" id="head-metrics"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">What each head learns — click to explore</div>
+        <div class="heads-grid" id="heads-grid"></div>
+        <div class="info-box purple" id="head-explain" style="font-size:13px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Multi-head formula</div>
+        <div class="formula">MultiHead(Q,K,V) = Concat(head₁,...,headₕ) · Wᴼ</div>
+        <div class="formula">headᵢ = Attention(Q·Wᵢᴼ, K·Wᵢᴷ, V·Wᵢᵛ)</div>
+        <p style="font-size:12px; color:var(--text3); margin-top:8px; font-family:var(--mono);">
+          Paper uses h=8 heads, d_k=d_v=d_model/h=64. Total compute is similar to single-head full-dim attention.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Ablation — heads vs. BLEU (from Table 3)</div>
+        <table>
+          <thead><tr><th>Heads (h)</th><th>d_k</th><th>d_v</th><th>BLEU (dev)</th><th>PPL (dev)</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>512</td><td>512</td><td>24.9</td><td>5.29</td></tr>
+            <tr><td>4</td><td>128</td><td>128</td><td>25.5</td><td>5.00</td></tr>
+            <tr class="highlight"><td>8</td><td>64</td><td>64</td><td><strong>25.8</strong></td><td>4.92</td></tr>
+            <tr><td>16</td><td>32</td><td>32</td><td>25.8</td><td>4.91</td></tr>
+            <tr><td>32</td><td>16</td><td>16</td><td>25.4</td><td>5.01</td></tr>
+          </tbody>
+        </table>
+        <div class="info-box amber" style="margin-top:10px; font-size:12px;">Too few heads → underpowered. Too many → each head's d_k becomes too small. h=8 is the sweet spot for the base model.</div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- PAGE: POSITIONAL ENCODING                  -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="page" id="page-positional">
+      <div class="page-header">
+        <div class="page-tag">No recurrence — need position</div>
+        <h1 class="page-title">Positional encoding</h1>
+        <p class="page-desc">The Transformer has no inherent sense of order. Positional encodings are added to token embeddings so the model can learn to use sequence position.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Sinusoidal functions</div>
+        <div class="formula">PE(pos, 2i)   = sin( pos / 10000^(2i / d_model) )</div>
+        <div class="formula">PE(pos, 2i+1) = cos( pos / 10000^(2i / d_model) )</div>
+        <p style="font-size:12px; color:var(--text2); margin-top:8px;">Each position gets a unique signature across d_model dimensions. The wavelengths form a geometric progression from 2π to 10000·2π.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Encoding heatmap — rows = dimensions, columns = positions</div>
+        <div class="slider-row">
+          <span class="slider-label">Sequence length</span>
+          <input type="range" min="4" max="40" step="1" value="20" id="pe-seqlen" oninput="drawPE()">
+          <span class="slider-val" id="pe-seqlen-display">20</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Dimensions shown</span>
+          <input type="range" min="4" max="64" step="4" value="32" id="pe-dims" oninput="drawPE()">
+          <span class="slider-val" id="pe-dims-display">32</span>
+        </div>
+        <canvas id="pe-canvas"></canvas>
+        <div style="display:flex; justify-content:space-between; margin-top:4px;">
+          <span style="font-size:11px; font-family:var(--mono); color:var(--text3);">← positions →</span>
+          <span style="font-size:11px; font-family:var(--mono); color:var(--text3);">dark = −1  light = +1</span>
+        </div>
+      </div>
+
+      <div class="card-grid2" style="margin-bottom:16px;">
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-title">Sinusoidal (chosen)</div>
+          <div class="info-box teal" style="font-size:12.5px;">Generalizes to sequences longer than seen during training. Relative position PE(pos+k) can be expressed as a linear function of PE(pos).</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-title">Learned embeddings (also tested)</div>
+          <div class="info-box amber" style="font-size:12.5px;">Nearly identical results (Table 3 row E). Cannot extrapolate to unseen lengths. Paper chose sinusoidal for its generalization property.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- PAGE: ARCHITECTURE                         -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="page" id="page-architecture">
+      <div class="page-header">
+        <div class="page-tag">Model design</div>
+        <h1 class="page-title">Transformer architecture</h1>
+        <p class="page-desc">The Transformer follows an encoder–decoder design. Both sides use stacked self-attention and feed-forward layers with residual connections and layer normalization.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Encoder ↔ Decoder (N = 6 layers each)</div>
+        <div class="card-grid2">
+          <div>
+            <p style="font-size:11px; font-family:var(--mono); color:#c4b5fd; margin-bottom:8px; letter-spacing:0.08em; text-transform:uppercase;">Encoder</p>
+            <div class="arch-stack">
+              <div class="arch-box arch-enc">Multi-head self-attention</div>
+              <div class="arch-arrow">↓</div>
+              <div class="arch-box arch-enc">Add &amp; Norm</div>
+              <div class="arch-arrow">↓</div>
+              <div class="arch-box arch-enc">Feed-forward (FFN)</div>
+              <div class="arch-arrow">↓</div>
+              <div class="arch-box arch-enc">Add &amp; Norm</div>
+              <div class="arch-arrow">↓</div>
+              <div class="arch-box arch-shared">Input embedding + positional enc.</div>
+            </div>
+          </div>
+          <div>
+            <p style="font-size:11px; font-family:var(--mono); color:#fde68a; margin-bottom:8px; letter-spacing:0.08em; text-transform:uppercase;">Decoder</p>
+            <div class="arch-stack">
+              <div class="arch-box arch-out">Linear → Softmax → output probs</div>
+              <div class="arch-arrow">↑</div>
+              <div class="arch-box arch-dec">Feed-forward (FFN)</div>
+              <div class="arch-arrow">↑</div>
+              <div class="arch-box arch-dec">Add &amp; Norm</div>
+              <div class="arch-arrow">↑</div>
+              <div class="arch-box arch-dec">Cross-attention (enc → dec)</div>
+              <div class="arch-arrow">↑</div>
+              <div class="arch-box arch-dec">Masked self-attention</div>
+              <div class="arch-arrow">↑</div>
+              <div class="arch-box arch-shared">Output embedding + positional enc.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Three types of attention in the Transformer</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div class="info-box purple"><strong>Encoder self-attention</strong> — all keys, values, and queries come from the encoder's previous layer. Every position can attend to every other position.</div>
+          <div class="info-box amber"><strong>Decoder masked self-attention</strong> — like encoder self-attention, but positions can only attend to earlier positions (mask sets future positions to −∞ before softmax). Preserves auto-regressive property.</div>
+          <div class="info-box teal"><strong>Cross-attention (encoder-decoder)</strong> — queries come from the decoder; keys and values come from the encoder output. Allows every decoder position to attend over the full input sequence.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Base model hyperparameters</div>
+        <div class="cmp-grid">
+          <div class="cmp-cell cmp-head">Parameter</div>
+          <div class="cmp-cell cmp-head">Base model</div>
+          <div class="cmp-cell cmp-head">Big model</div>
+          <div class="cmp-cell">Layers N</div><div class="cmp-cell" style="color:var(--text);">6</div><div class="cmp-cell" style="color:var(--text);">6</div>
+          <div class="cmp-cell">d_model</div><div class="cmp-cell" style="color:var(--text);">512</div><div class="cmp-cell" style="color:var(--text);">1024</div>
+          <div class="cmp-cell">d_ff</div><div class="cmp-cell" style="color:var(--text);">2048</div><div class="cmp-cell" style="color:var(--text);">4096</div>
+          <div class="cmp-cell">Heads h</div><div class="cmp-cell" style="color:var(--text);">8</div><div class="cmp-cell" style="color:var(--text);">16</div>
+          <div class="cmp-cell">d_k = d_v</div><div class="cmp-cell" style="color:var(--text);">64</div><div class="cmp-cell" style="color:var(--text);">64</div>
+          <div class="cmp-cell">P_drop</div><div class="cmp-cell" style="color:var(--text);">0.1</div><div class="cmp-cell" style="color:var(--text);">0.3</div>
+          <div class="cmp-cell">Parameters</div><div class="cmp-cell" style="color:var(--accent);">65M</div><div class="cmp-cell" style="color:var(--accent);">213M</div>
+          <div class="cmp-cell">Train steps</div><div class="cmp-cell" style="color:var(--text);">100K</div><div class="cmp-cell" style="color:var(--text);">300K</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Training details</div>
+        <table>
+          <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>Hardware</td><td>8× NVIDIA P100 GPUs</td></tr>
+            <tr><td>Optimizer</td><td>Adam (β₁=0.9, β₂=0.98, ε=10⁻⁹)</td></tr>
+            <tr><td>Learning rate schedule</td><td>Warmup 4000 steps, then inverse sqrt decay</td></tr>
+            <tr><td>Regularization</td><td>Dropout (P=0.1) + Label smoothing (ε=0.1)</td></tr>
+            <tr><td>EN-DE training data</td><td>WMT 2014 · 4.5M sentence pairs · BPE 37K vocab</td></tr>
+            <tr><td>EN-FR training data</td><td>WMT 2014 · 36M sentences · word-piece 32K vocab</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- PAGE: BLEU RESULTS                         -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="page" id="page-results">
+      <div class="page-header">
+        <div class="page-tag">Benchmarks</div>
+        <h1 class="page-title">BLEU results</h1>
+        <p class="page-desc">The Transformer achieves state-of-the-art on WMT 2014 English-German and English-French translation at a fraction of the compute of previous best models.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">WMT 2014 EN → DE translation</div>
+        <div id="bleu-ende"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">WMT 2014 EN → FR translation</div>
+        <div id="bleu-enfr"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Training cost (FLOPs) — log scale</div>
+        <div id="flops-chart"></div>
+        <p style="font-size:12px; color:var(--text3); margin-top:10px; font-family:var(--mono);">Transformer (big) needs only 2.3×10¹⁹ FLOPs vs 1.1×10²¹ for GNMT ensemble — ~50× cheaper while outperforming it.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Full results table (Table 2 from paper)</div>
+        <table>
+          <thead><tr><th>Model</th><th>EN-DE BLEU</th><th>EN-FR BLEU</th><th>FLOPs EN-DE</th></tr></thead>
+          <tbody>
+            <tr><td>ByteNet</td><td>23.75</td><td>—</td><td>—</td></tr>
+            <tr><td>GNMT + RL</td><td>24.6</td><td>39.92</td><td>2.3×10¹⁹</td></tr>
+            <tr><td>ConvS2S</td><td>25.16</td><td>40.46</td><td>9.6×10¹⁸</td></tr>
+            <tr><td>MoE</td><td>26.03</td><td>40.56</td><td>2.0×10¹⁹</td></tr>
+            <tr><td>GNMT + RL Ensemble</td><td>26.30</td><td>41.16</td><td>1.8×10²⁰</td></tr>
+            <tr><td>ConvS2S Ensemble</td><td>26.36</td><td>41.29</td><td>7.7×10¹⁹</td></tr>
+            <tr><td>Transformer (base)</td><td>27.3</td><td>38.1</td><td>3.3×10¹⁸</td></tr>
+            <tr class="highlight"><td>Transformer (big) ★</td><td>28.4</td><td>41.0</td><td>2.3×10¹⁹</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- PAGE: COMPLEXITY ANALYSIS                  -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="page" id="page-complexity">
+      <div class="page-header">
+        <div class="page-tag">Theoretical analysis</div>
+        <h1 class="page-title">Complexity analysis</h1>
+        <p class="page-desc">Why self-attention? The paper compares self-attention to recurrent and convolutional layers across three key metrics.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Table 1 from paper — layer complexity comparison</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Layer type</th>
+              <th>Complexity / layer</th>
+              <th>Sequential ops</th>
+              <th>Max path length</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="highlight">
+              <td>Self-attention</td>
+              <td>O(n² · d)</td>
+              <td>O(1)</td>
+              <td>O(1) ★</td>
+            </tr>
+            <tr>
+              <td>Recurrent</td>
+              <td>O(n · d²)</td>
+              <td>O(n)</td>
+              <td>O(n)</td>
+            </tr>
+            <tr>
+              <td>Convolutional</td>
+              <td>O(k · n · d²)</td>
+              <td>O(1)</td>
+              <td>O(log_k n)</td>
+            </tr>
+            <tr>
+              <td>Self-attn (restricted)</td>
+              <td>O(r · n · d)</td>
+              <td>O(1)</td>
+              <td>O(n/r)</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="font-size:12px; color:var(--text3); margin-top:10px; font-family:var(--mono);">n = sequence length, d = representation dim, k = conv kernel size, r = restricted attention neighborhood size</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Interactive complexity explorer</div>
+        <div class="slider-row">
+          <span class="slider-label">Sequence length n</span>
+          <input type="range" min="8" max="512" step="8" value="64" id="cx-n" oninput="updateComplexity()">
+          <span class="slider-val" id="cx-n-display">64</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Dimension d</span>
+          <input type="range" min="64" max="1024" step="64" value="512" id="cx-d" oninput="updateComplexity()">
+          <span class="slider-val" id="cx-d-display">512</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Kernel size k</span>
+          <input type="range" min="1" max="16" step="1" value="5" id="cx-k" oninput="updateComplexity()">
+          <span class="slider-val" id="cx-k-display">5</span>
+        </div>
+        <div class="card-grid3" id="cx-metrics" style="margin-top:14px;"></div>
+        <canvas id="cx-canvas" style="width:100%; height:160px; margin-top:14px; border-radius:var(--radius);"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Why path length matters</div>
+        <div class="info-box purple" style="font-size:13px; margin-bottom:8px;">
+          In RNNs, to relate token 1 to token n, the signal must traverse n steps forward and backward — the gradient path is O(n). This makes it hard to learn long-range dependencies.
+        </div>
+        <div class="info-box teal" style="font-size:13px;">
+          In self-attention, any two positions are connected in a single operation — path length O(1). The model can directly compare "the" at position 1 to "mat" at position 6 with equal ease as adjacent tokens.
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- PAGE: FORMULA SANDBOX                      -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="page" id="page-sandbox">
+      <div class="page-header">
+        <div class="page-tag">Hands-on</div>
+        <h1 class="page-title">Formula sandbox</h1>
+        <p class="page-desc">Compute attention, scale factors, and positional encodings directly. Enter values and see results.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Scaled dot-product — compute attention scores</div>
+        <p style="font-size:13px; color:var(--text2); margin-bottom:12px;">Enter a query vector Q and a set of key vectors K (comma-separated values per vector, semicolon between vectors). Weights will be computed via softmax(Q·Kᵀ/√d_k).</p>
+        <div style="margin-bottom:10px;">
+          <label style="font-size:12px; font-family:var(--mono); color:var(--text3);">Q (query vector)</label>
+          <input type="text" id="sb-q" value="1, 0, 1, 0" style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:9px 14px; font-family:var(--mono); font-size:13px; color:var(--text); outline:none; margin-top:5px;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px; font-family:var(--mono); color:var(--text3);">K (key vectors — semicolon-separated)</label>
+          <input type="text" id="sb-k" value="1,0,1,0; 0,1,0,1; 1,1,0,0; 0,0,1,1" style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:9px 14px; font-family:var(--mono); font-size:13px; color:var(--text); outline:none; margin-top:5px;">
+        </div>
+        <button class="btn btn-accent" onclick="computeAttention()">Compute attention weights</button>
+        <div class="sandbox-output" id="sb-output" style="display:none; margin-top:12px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Positional encoding — compute PE values</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:12px; font-family:var(--mono); color:var(--text3);">Position (pos)</label>
+            <input type="number" id="sb-pos" value="5" min="0" style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; font-family:var(--mono); font-size:13px; color:var(--text); outline:none; margin-top:5px;">
+          </div>
+          <div>
+            <label style="font-size:12px; font-family:var(--mono); color:var(--text3);">Dimension (i)</label>
+            <input type="number" id="sb-i" value="2" min="0" style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; font-family:var(--mono); font-size:13px; color:var(--text); outline:none; margin-top:5px;">
+          </div>
+          <div>
+            <label style="font-size:12px; font-family:var(--mono); color:var(--text3);">d_model</label>
+            <input type="number" id="sb-dmodel" value="512" min="2" style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; font-family:var(--mono); font-size:13px; color:var(--text); outline:none; margin-top:5px;">
+          </div>
+        </div>
+        <button class="btn btn-accent" onclick="computePE()">Compute PE</button>
+        <div class="sandbox-output" id="pe-output" style="display:none; margin-top:12px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Learning rate schedule — warmup + inverse sqrt decay</div>
+        <div class="formula">lrate = d_model^(−0.5) × min(step^(−0.5), step × warmup^(−1.5))</div>
+        <div class="slider-row" style="margin-top:12px;">
+          <span class="slider-label">Current step</span>
+          <input type="range" min="1" max="100000" step="100" value="4000" id="lr-step" oninput="updateLR()">
+          <span class="slider-val" id="lr-step-display">4000</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">d_model</span>
+          <input type="range" min="64" max="1024" step="64" value="512" id="lr-dmodel" oninput="updateLR()">
+          <span class="slider-val" id="lr-dmodel-display">512</span>
+        </div>
+        <canvas id="lr-canvas" style="width:100%; height:140px; margin-top:12px; border-radius:var(--radius);"></canvas>
+        <div style="display:flex; justify-content:space-between; margin-top:8px;">
+          <span style="font-size:12px; font-family:var(--mono); color:var(--teal);">Current LR: <span id="lr-current">—</span></span>
+          <span style="font-size:12px; font-family:var(--mono); color:var(--text3);">peak at warmup_steps=4000</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- PAGE: QUIZ                                 -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="page" id="page-quiz">
+      <div class="page-header">
+        <div class="page-tag">Test your knowledge</div>
+        <h1 class="page-title">Concept quiz</h1>
+        <p class="page-desc">Eight questions covering the key ideas from the Transformer paper.</p>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <span style="font-family:var(--mono); font-size:13px; color:var(--text2);">Question <span id="q-num">1</span> of 8</span>
+          <span style="font-family:var(--mono); font-size:13px; color:var(--accent);">Score: <span id="q-score">0</span></span>
+        </div>
+        <p style="font-size:16px; color:var(--text); margin-bottom:18px; line-height:1.5;" id="q-text"></p>
+        <div id="q-options"></div>
+        <div class="info-box neutral" id="q-feedback" style="display:none; margin-top:10px; font-size:13px;"></div>
+        <div style="display:flex; justify-content:space-between; margin-top:16px;">
+          <button class="btn" id="q-next" onclick="nextQuestion()" style="display:none;">Next question →</button>
+          <button class="btn" id="q-restart" onclick="restartQuiz()" style="display:none;">Restart quiz</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// NAVIGATION
+// ─────────────────────────────────────────────
+function showPage(id, navEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  navEl.classList.add('active');
+  if (id === 'positional') setTimeout(drawPE, 80);
+  if (id === 'complexity') setTimeout(() => { updateComplexity(); }, 80);
+  if (id === 'sandbox') setTimeout(updateLR, 80);
+  if (id === 'results') setTimeout(renderBLEU, 80);
+  if (id === 'multihead') { updateHeads(); }
+  if (id === 'attention') { buildAttentionPage(); }
+}
+
+// ─────────────────────────────────────────────
+// ATTENTION VISUALIZER
+// ─────────────────────────────────────────────
+const TOKENS = ['The','cat','sat','on','the','mat','quickly'];
+const ATTN_DATA = {
+  'The':     [0.07,0.14,0.11,0.05,0.38,0.10,0.15],
+  'cat':     [0.11,0.31,0.22,0.08,0.05,0.13,0.10],
+  'sat':     [0.05,0.21,0.24,0.24,0.09,0.07,0.10],
+  'on':      [0.07,0.10,0.14,0.20,0.12,0.32,0.05],
+  'the':     [0.34,0.06,0.08,0.11,0.10,0.21,0.10],
+  'mat':     [0.09,0.14,0.06,0.31,0.20,0.12,0.08],
+  'quickly': [0.07,0.11,0.30,0.09,0.05,0.08,0.30],
+};
+const ATTN_EXPLAIN = {
+  'The':     '"The" attends strongly to "the" (its article pair) — coreference between the two determiners.',
+  'cat':     '"cat" (subject) attends most to itself and strongly to "sat" — subject-verb dependency captured.',
+  'sat':     '"sat" (verb) attends to both "cat" (subject) and "on" (prepositional argument).',
+  'on':      '"on" (preposition) focuses on "mat" — preposition attends to its object.',
+  'the':     '"the" mirrors "The" at position 1 — the model has learned article-to-article coreference.',
+  'mat':     '"mat" (object of "on") attends to "on" — the governing preposition.',
+  'quickly': '"quickly" (adverb) attends to "sat" — adverb-verb modification relationship.',
+};
+
+let selectedToken = 'cat';
+
+function buildAttentionPage() {
+  buildTokenRow();
+  renderAttentionBars();
+  renderAttentionMatrix();
+}
+
+function buildTokenRow() {
+  const row = document.getElementById('token-row');
+  if (!row) return;
+  row.innerHTML = '';
+  TOKENS.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'token' + (t === selectedToken ? ' active' : '');
+    el.textContent = t;
+    el.onclick = () => { selectedToken = t; buildTokenRow(); renderAttentionBars(); };
+    row.appendChild(el);
+  });
+}
+
+function renderAttentionBars() {
+  const weights = ATTN_DATA[selectedToken];
+  const container = document.getElementById('attn-bars');
+  if (!container) return;
+  const colors = ['#a78bfa','#2dd4bf','#fbbf24','#f87171','#818cf8','#4ade80','#fb923c'];
+  let html = '';
+  TOKENS.forEach((t, i) => {
+    const w = weights[i];
+    const h = Math.round(w * 78);
+    const isQ = t === selectedToken;
+    html += `<div class="attn-bar-wrap">
+      <div class="attn-bar-pct">${Math.round(w*100)}%</div>
+      <div class="attn-bar" style="height:${h}px; background:${isQ ? colors[i] : colors[i]+'88'}; ${isQ ? 'box-shadow:0 0 10px '+colors[i]+'66;' : ''}"></div>
+      <div class="attn-bar-label" style="${isQ ? 'color:'+colors[i]+';' : ''}">${t}</div>
+    </div>`;
+  });
+  container.innerHTML = html;
+  const exp = document.getElementById('attn-explain');
+  if (exp) exp.textContent = ATTN_EXPLAIN[selectedToken];
+}
+
+function renderAttentionMatrix() {
+  const container = document.getElementById('attn-matrix-container');
+  if (!container) return;
+  const n = TOKENS.length;
+  const size = 36;
+  const gap = 2;
+  const total = n + 1;
+  let html = `<div style="display:grid; grid-template-columns:${size}px ${Array(n).fill(size+'px').join(' ')}; gap:${gap}px;">`;
+  // Header row
+  html += `<div class="attn-cell" style="background:transparent;"></div>`;
+  TOKENS.forEach(t => { html += `<div class="attn-axis-label">${t}</div>`; });
+  // Data rows
+  TOKENS.forEach((rowT, ri) => {
+    html += `<div class="attn-axis-label" style="justify-content:flex-end; padding-right:4px;">${rowT}</div>`;
+    const weights = ATTN_DATA[rowT];
+    weights.forEach((w, ci) => {
+      const alpha = Math.round(w * 255).toString(16).padStart(2,'0');
+      const isHighlight = rowT === selectedToken || TOKENS[ci] === selectedToken;
+      const bg = `#7c3aed${alpha}`;
+      const textColor = w > 0.3 ? '#fff' : w > 0.15 ? '#c4b5fd' : '#4a3a6a';
+      html += `<div class="attn-cell" style="background:${bg}; color:${textColor}; ${isHighlight ? 'outline:1px solid #a78bfa;' : ''}">${Math.round(w*100)}</div>`;
+    });
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function updateDk() {
+  const dk = parseInt(document.getElementById('dk').value);
+  document.getElementById('dk-display').textContent = dk;
+  document.getElementById('scale-display').textContent = (1/Math.sqrt(dk)).toFixed(4);
+}
+
+// ─────────────────────────────────────────────
+// MULTI-HEAD ATTENTION
+// ─────────────────────────────────────────────
+const HEAD_ROLES = [
+  {label:'Head 1', role:'Subject-verb', color:'#a78bfa', explain:'Specializes in subject-verb agreement. Links "cat" to "sat", "The" to verbs, etc. Critical for grammatical agreement.'},
+  {label:'Head 2', role:'Coreference', color:'#2dd4bf', explain:'Tracks which words refer to the same entity. Connects pronouns to their antecedents across long distances.'},
+  {label:'Head 3', role:'Local context', color:'#fbbf24', explain:'Attends heavily to adjacent tokens, capturing local n-gram patterns. Behaves similarly to a trigram language model.'},
+  {label:'Head 4', role:'Preposition', color:'#f87171', explain:'Links prepositions to their objects and to the words they modify. e.g., "on" → "mat".'},
+  {label:'Head 5', role:'Semantics', color:'#818cf8', explain:'Groups semantically similar words together regardless of distance. Useful for topic coherence.'},
+  {label:'Head 6', role:'Syntax', color:'#4ade80', explain:'Captures phrase-level syntactic structure — noun phrases, verb phrases, clause boundaries.'},
+  {label:'Head 7', role:'Relative position', color:'#fb923c', explain:'Shows strong positional bias — tends to attend to tokens at a fixed offset (e.g., always the previous token).'},
+  {label:'Head 8', role:'Sequence boundary', color:'#38bdf8', explain:'Attends to sentence-start and sentence-end tokens. Provides global context signals.'},
+];
+
+let selectedHead = 0;
+
+function updateHeads() {
+  const h = parseInt(document.getElementById('heads').value);
+  const dm = parseInt(document.getElementById('dmodel').value);
+  document.getElementById('heads-display').textContent = h;
+  document.getElementById('dmodel-display').textContent = dm;
+  const dk = Math.floor(dm / h);
+  const params = h * (dm * dk * 3 + dm * h * dk);
+
+  const m = document.getElementById('head-metrics');
+  if (!m) return;
+  m.innerHTML = `
+    <div class="metric"><div class="metric-label">d_k = d_v</div><div class="metric-value">${dk}</div></div>
+    <div class="metric"><div class="metric-label">Heads × d_k</div><div class="metric-value">${h * dk}<span> = d_model</span></div></div>
+    <div class="metric"><div class="metric-label">Attn params (approx)</div><div class="metric-value">${(4*dm*dm/1e6).toFixed(2)}<span>M</span></div></div>
+  `;
+
+  const grid = document.getElementById('heads-grid');
+  if (!grid) return;
+  const displayCount = Math.min(h, 8);
+  grid.style.gridTemplateColumns = `repeat(${Math.min(displayCount, 4)}, 1fr)`;
+  grid.innerHTML = '';
+  for (let i = 0; i < displayCount; i++) {
+    const hd = HEAD_ROLES[i % HEAD_ROLES.length];
+    const el = document.createElement('div');
+    el.className = 'head-card' + (i === selectedHead ? ' active' : '');
+    el.innerHTML = `<div class="head-num" style="color:${hd.color};">${i+1}</div><div class="head-role">${hd.role}</div>`;
+    el.onclick = () => { selectedHead = i; updateHeads(); };
+    grid.appendChild(el);
+  }
+
+  const exp = document.getElementById('head-explain');
+  if (exp) exp.textContent = HEAD_ROLES[selectedHead % HEAD_ROLES.length].explain;
+}
+
+// ─────────────────────────────────────────────
+// POSITIONAL ENCODING
+// ─────────────────────────────────────────────
+function drawPE() {
+  const canvas = document.getElementById('pe-canvas');
+  if (!canvas) return;
+  const seqEl = document.getElementById('pe-seqlen');
+  const dimsEl = document.getElementById('pe-dims');
+  if (!seqEl || !dimsEl) return;
+
+  const seqLen = parseInt(seqEl.value);
+  const dims = parseInt(dimsEl.value);
+  document.getElementById('pe-seqlen-display').textContent = seqLen;
+  document.getElementById('pe-dims-display').textContent = dims;
+
+  const dmodel = 512;
+  const cellW = Math.max(8, Math.floor(canvas.offsetWidth / seqLen));
+  const cellH = Math.max(4, Math.floor(160 / dims));
+  canvas.width = cellW * seqLen;
+  canvas.height = cellH * dims;
+
+  const ctx = canvas.getContext('2d');
+  for (let pos = 0; pos < seqLen; pos++) {
+    for (let i = 0; i < dims; i++) {
+      const even = i % 2 === 0;
+      const dimIdx = Math.floor(i / 2);
+      const val = even
+        ? Math.sin(pos / Math.pow(10000, 2 * dimIdx / dmodel))
+        : Math.cos(pos / Math.pow(10000, 2 * dimIdx / dmodel));
+      // val in [-1, 1] → map to color
+      const t = (val + 1) / 2; // 0..1
+      const r = Math.round(10 + t * 120);
+      const g = Math.round(10 + t * 90);
+      const b = Math.round(80 + t * 160);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(pos * cellW, i * cellH, cellW - 1, cellH - 1);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// BLEU RESULTS
+// ─────────────────────────────────────────────
+const BLEU_ENDE = [
+  {name:'ByteNet', score:23.75, color:'#4a4a6a'},
+  {name:'GNMT + RL', score:24.6, color:'#5a5a7a'},
+  {name:'ConvS2S', score:25.16, color:'#6a5a8a'},
+  {name:'MoE', score:26.03, color:'#7a6a9a'},
+  {name:'GNMT Ensemble', score:26.30, color:'#8a7aaa'},
+  {name:'ConvS2S Ensemble', score:26.36, color:'#8a7aaa'},
+  {name:'Transformer (base)', score:27.3, color:'#6d28d9'},
+  {name:'Transformer (big) ★', score:28.4, color:'#a78bfa', highlight:true},
+];
+const BLEU_ENFR = [
+  {name:'Deep-Att + PosUnk', score:39.2, color:'#4a4a6a'},
+  {name:'GNMT + RL', score:39.92, color:'#5a5a7a'},
+  {name:'ConvS2S', score:40.46, color:'#6a5a8a'},
+  {name:'MoE', score:40.56, color:'#7a6a9a'},
+  {name:'GNMT Ensemble', score:41.16, color:'#8a7aaa'},
+  {name:'ConvS2S Ensemble', score:41.29, color:'#8a7aaa'},
+  {name:'Transformer (base)', score:38.1, color:'#6d28d9'},
+  {name:'Transformer (big) ★', score:41.0, color:'#a78bfa', highlight:true},
+];
+
+function renderBLEU() {
+  renderBLEUChart('bleu-ende', BLEU_ENDE, 22, 30);
+  renderBLEUChart('bleu-enfr', BLEU_ENFR, 38, 43);
+  renderFLOPS();
+}
+
+function renderBLEUChart(id, data, minVal, maxVal) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let html = '';
+  data.forEach(d => {
+    const pct = ((d.score - minVal) / (maxVal - minVal)) * 100;
+    const color = d.highlight ? '#a78bfa' : '#4a3a7a';
+    html += `<div class="bleu-row">
+      <div class="bleu-name" style="${d.highlight ? 'color:var(--text);' : ''}">${d.name}</div>
+      <div class="bleu-track">
+        <div class="bleu-fill" style="width:${pct.toFixed(1)}%; background:${color}; color:${d.highlight ? '#fff' : '#9090a8'};">${d.score}</div>
+      </div>
+      <div class="bleu-score" style="${d.highlight ? 'color:var(--accent);' : ''}">${d.score}</div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+function renderFLOPS() {
+  const el = document.getElementById('flops-chart');
+  if (!el) return;
+  const models = [
+    {name:'ConvS2S', flops:9.6e18},
+    {name:'GNMT + RL', flops:2.3e19},
+    {name:'MoE', flops:2.0e19},
+    {name:'Transformer (big)', flops:2.3e19, highlight:true},
+    {name:'GNMT Ensemble', flops:1.8e20},
+    {name:'ConvS2S Ensemble', flops:7.7e19},
+  ];
+  const max = Math.max(...models.map(m => Math.log10(m.flops)));
+  const min = Math.log10(models.reduce((a,b) => a.flops < b.flops ? a : b).flops) - 0.5;
+  let html = '';
+  models.forEach(m => {
+    const log = Math.log10(m.flops);
+    const pct = ((log - min) / (max - min)) * 100;
+    const exp = Math.round(log);
+    const mantissa = (m.flops / Math.pow(10, exp)).toFixed(1);
+    html += `<div class="bleu-row">
+      <div class="bleu-name" style="${m.highlight ? 'color:var(--text);' : ''}">${m.name}</div>
+      <div class="bleu-track">
+        <div class="bleu-fill" style="width:${pct.toFixed(1)}%; background:${m.highlight ? '#a78bfa' : '#4a3a7a'}; color:${m.highlight ? '#fff' : '#9090a8'};">${mantissa}×10^${exp}</div>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+// ─────────────────────────────────────────────
+// COMPLEXITY ANALYSIS
+// ─────────────────────────────────────────────
+function updateComplexity() {
+  const n = parseInt(document.getElementById('cx-n').value);
+  const d = parseInt(document.getElementById('cx-d').value);
+  const k = parseInt(document.getElementById('cx-k').value);
+  document.getElementById('cx-n-display').textContent = n;
+  document.getElementById('cx-d-display').textContent = d;
+  document.getElementById('cx-k-display').textContent = k;
+
+  const sa = n*n*d;
+  const rnn = n*d*d;
+  const cnn = k*n*d*d;
+
+  const m = document.getElementById('cx-metrics');
+  if (!m) return;
+  m.innerHTML = `
+    <div class="metric"><div class="metric-label">Self-attn ops</div><div class="metric-value" style="font-size:18px;">${fmtNum(sa)}</div></div>
+    <div class="metric"><div class="metric-label">Recurrent ops</div><div class="metric-value" style="font-size:18px;">${fmtNum(rnn)}</div></div>
+    <div class="metric"><div class="metric-label">Convolution ops</div><div class="metric-value" style="font-size:18px;">${fmtNum(cnn)}</div></div>
+  `;
+
+  drawComplexityChart(n, d, k);
+}
+
+function fmtNum(v) {
+  if (v >= 1e9) return (v/1e9).toFixed(1)+'B';
+  if (v >= 1e6) return (v/1e6).toFixed(1)+'M';
+  if (v >= 1e3) return (v/1e3).toFixed(1)+'K';
+  return v;
+}
+
+function drawComplexityChart(n, d, k) {
+  const canvas = document.getElementById('cx-canvas');
+  if (!canvas) return;
+  canvas.width = canvas.offsetWidth * window.devicePixelRatio || 800;
+  canvas.height = 160 * window.devicePixelRatio || 160;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  const steps = 40;
+  const nVals = Array.from({length:steps}, (_,i) => Math.round(8 + (i/(steps-1)) * (512-8)));
+  const saVals = nVals.map(ni => ni*ni*d);
+  const rnnVals = nVals.map(ni => ni*d*d);
+  const cnnVals = nVals.map(ni => k*ni*d*d);
+
+  const allVals = [...saVals, ...rnnVals, ...cnnVals];
+  const maxV = Math.max(...allVals);
+  const minV = 0;
+
+  const pad = { l:10, r:10, t:10, b:10 };
+
+  function xOf(i) { return pad.l + (i/(steps-1)) * (W - pad.l - pad.r); }
+  function yOf(v) { return H - pad.b - ((v-minV)/(maxV-minV)) * (H - pad.t - pad.b); }
+
+  function drawLine(vals, color) {
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2 * window.devicePixelRatio;
+    vals.forEach((v,i) => {
+      if (i===0) ctx.moveTo(xOf(i), yOf(v));
+      else ctx.lineTo(xOf(i), yOf(v));
+    });
+    ctx.stroke();
+  }
+
+  // Fill under
+  function fillUnder(vals, color) {
+    ctx.beginPath();
+    vals.forEach((v,i) => {
+      if (i===0) ctx.moveTo(xOf(i), yOf(v));
+      else ctx.lineTo(xOf(i), yOf(v));
+    });
+    ctx.lineTo(xOf(steps-1), H-pad.b);
+    ctx.lineTo(xOf(0), H-pad.b);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  fillUnder(cnnVals, 'rgba(248,113,113,0.08)');
+  fillUnder(rnnVals, 'rgba(251,191,36,0.08)');
+  fillUnder(saVals, 'rgba(167,139,250,0.08)');
+  drawLine(cnnVals, '#f87171');
+  drawLine(rnnVals, '#fbbf24');
+  drawLine(saVals, '#a78bfa');
+
+  // Current n marker
+  const ni = nVals.findIndex(v => v >= n) || 0;
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4,4]);
+  ctx.moveTo(xOf(ni), pad.t);
+  ctx.lineTo(xOf(ni), H-pad.b);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Legend
+  ctx.font = `${11 * window.devicePixelRatio}px DM Mono, monospace`;
+  ctx.fillStyle = '#a78bfa'; ctx.fillText('self-attn', W-120*window.devicePixelRatio, 22*window.devicePixelRatio);
+  ctx.fillStyle = '#fbbf24'; ctx.fillText('recurrent', W-120*window.devicePixelRatio, 38*window.devicePixelRatio);
+  ctx.fillStyle = '#f87171'; ctx.fillText('conv', W-120*window.devicePixelRatio, 54*window.devicePixelRatio);
+}
+
+// ─────────────────────────────────────────────
+// FORMULA SANDBOX
+// ─────────────────────────────────────────────
+function softmax(arr) {
+  const max = Math.max(...arr);
+  const exps = arr.map(x => Math.exp(x - max));
+  const sum = exps.reduce((a,b) => a+b, 0);
+  return exps.map(x => x/sum);
+}
+
+function computeAttention() {
+  try {
+    const q = document.getElementById('sb-q').value.split(',').map(Number);
+    const kRows = document.getElementById('sb-k').value.split(';').map(r => r.split(',').map(Number));
+    const dk = q.length;
+    const scores = kRows.map(k => {
+      if (k.length !== dk) throw new Error('Dimension mismatch');
+      return k.reduce((s, ki, i) => s + ki * q[i], 0) / Math.sqrt(dk);
+    });
+    const weights = softmax(scores);
+    let out = `Query Q: [${q.join(', ')}]  (d_k = ${dk})\n`;
+    out += `Scale: 1/√${dk} = ${(1/Math.sqrt(dk)).toFixed(4)}\n\n`;
+    out += `Raw scores (Q·Kᵀ / √d_k):\n`;
+    scores.forEach((s, i) => { out += `  K${i+1}: ${s.toFixed(4)}\n`; });
+    out += `\nSoftmax attention weights:\n`;
+    weights.forEach((w, i) => { out += `  K${i+1}: ${(w*100).toFixed(2)}%  ${'█'.repeat(Math.round(w*20))}\n`; });
+    const el = document.getElementById('sb-output');
+    el.textContent = out;
+    el.style.display = 'block';
+  } catch(e) {
+    const el = document.getElementById('sb-output');
+    el.textContent = 'Error: ' + e.message;
+    el.style.display = 'block';
+  }
+}
+
+function computePE() {
+  const pos = parseInt(document.getElementById('sb-pos').value);
+  const i = parseInt(document.getElementById('sb-i').value);
+  const dm = parseInt(document.getElementById('sb-dmodel').value);
+  const even = i % 2 === 0;
+  const dimIdx = Math.floor(i / 2);
+  const denom = Math.pow(10000, 2 * dimIdx / dm);
+  const val_sin = Math.sin(pos / denom);
+  const val_cos = Math.cos(pos / denom);
+  let out = `PE(pos=${pos}, dim=${i}):\n`;
+  out += `\nFormula index: i = ${dimIdx}, parity = ${even ? 'even → sin' : 'odd → cos'}\n`;
+  out += `Denominator: 10000^(2×${dimIdx}/${dm}) = ${denom.toFixed(4)}\n`;
+  out += `Argument: ${pos} / ${denom.toFixed(4)} = ${(pos/denom).toFixed(6)} rad\n\n`;
+  out += `PE(${pos}, ${i})  = ${even ? 'sin' : 'cos'}(${pos}/${denom.toFixed(2)})\n`;
+  out += `            = ${even ? val_sin.toFixed(6) : val_cos.toFixed(6)}\n\n`;
+  out += `Also:\nPE(${pos}, ${2*dimIdx})   = sin → ${val_sin.toFixed(6)}\nPE(${pos}, ${2*dimIdx+1}) = cos → ${val_cos.toFixed(6)}\n`;
+  const el = document.getElementById('pe-output');
+  el.textContent = out;
+  el.style.display = 'block';
+}
+
+function lrFormula(step, dm, warmup=4000) {
+  return Math.pow(dm, -0.5) * Math.min(Math.pow(step, -0.5), step * Math.pow(warmup, -1.5));
+}
+
+function updateLR() {
+  const step = parseInt(document.getElementById('lr-step').value);
+  const dm = parseInt(document.getElementById('lr-dmodel').value);
+  document.getElementById('lr-step-display').textContent = step.toLocaleString();
+  document.getElementById('lr-dmodel-display').textContent = dm;
+  const lr = lrFormula(step, dm);
+  document.getElementById('lr-current').textContent = lr.toExponential(4);
+  drawLRChart(step, dm);
+}
+
+function drawLRChart(currentStep, dm) {
+  const canvas = document.getElementById('lr-canvas');
+  if (!canvas) return;
+  canvas.width = canvas.offsetWidth * (window.devicePixelRatio || 1);
+  canvas.height = 140 * (window.devicePixelRatio || 1);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const pad = {l:8, r:8, t:8, b:8};
+  const steps = 100;
+  const maxStep = 100000;
+  const lrVals = Array.from({length:steps}, (_,i) => {
+    const s = Math.max(1, Math.round((i+1)/steps * maxStep));
+    return lrFormula(s, dm);
+  });
+  const maxLR = Math.max(...lrVals);
+
+  function xOf(i) { return pad.l + (i/steps) * (W - pad.l - pad.r); }
+  function yOf(v) { return H - pad.b - (v/maxLR) * (H - pad.t - pad.b); }
+
+  // Fill
+  ctx.beginPath();
+  lrVals.forEach((v,i) => i===0 ? ctx.moveTo(xOf(i), yOf(v)) : ctx.lineTo(xOf(i), yOf(v)));
+  ctx.lineTo(xOf(steps), H-pad.b);
+  ctx.lineTo(xOf(0), H-pad.b);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(167,139,250,0.1)';
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#a78bfa';
+  ctx.lineWidth = 2;
+  lrVals.forEach((v,i) => i===0 ? ctx.moveTo(xOf(i), yOf(v)) : ctx.lineTo(xOf(i), yOf(v)));
+  ctx.stroke();
+
+  // Current position
+  const ci = Math.round((currentStep / maxStep) * steps);
+  const cv = lrFormula(currentStep, dm);
+  ctx.beginPath();
+  ctx.arc(xOf(ci), yOf(cv), 4, 0, Math.PI*2);
+  ctx.fillStyle = '#a78bfa';
+  ctx.fill();
+
+  // Warmup line
+  const wi = Math.round((4000 / maxStep) * steps);
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(251,191,36,0.4)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3,3]);
+  ctx.moveTo(xOf(wi), pad.t);
+  ctx.lineTo(xOf(wi), H - pad.b);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ─────────────────────────────────────────────
+// QUIZ
+// ─────────────────────────────────────────────
+const QUIZ = [
+  {
+    q: 'Why does the Transformer scale the dot product by 1/√d_k?',
+    opts: [
+      'To make the output sum to 1',
+      'To prevent the softmax from entering regions of extremely small gradients',
+      'To normalize the key vectors',
+      'To match the magnitude of positional encodings'
+    ],
+    correct: 1,
+    feedback: 'For large d_k, dot products grow in magnitude (variance = d_k), pushing softmax into near-zero gradient regions. Dividing by √d_k keeps variance at ~1.'
+  },
+  {
+    q: 'What BLEU score did the Transformer (big) achieve on WMT 2014 EN→DE, and by how much did it beat the previous best?',
+    opts: ['26.3, by 0.7 BLEU', '27.3, by 1.0 BLEU', '28.4, by >2.0 BLEU', '41.0, by 1.5 BLEU'],
+    correct: 2,
+    feedback: 'The Transformer (big) scored 28.4 BLEU on EN-DE, improving over the previous best ensemble by more than 2 BLEU points.'
+  },
+  {
+    q: 'In the base Transformer, what are the values of h (heads), d_k, and d_v?',
+    opts: [
+      'h=16, d_k=32, d_v=32',
+      'h=8, d_k=64, d_v=64',
+      'h=4, d_k=128, d_v=128',
+      'h=8, d_k=512, d_v=512'
+    ],
+    correct: 1,
+    feedback: 'The base model uses 8 heads with d_k = d_v = d_model / h = 512/8 = 64. Total compute is similar to single-head full-dimensional attention.'
+  },
+  {
+    q: 'What is the maximum path length (in sequential operations) between any two positions in a self-attention layer?',
+    opts: ['O(n)', 'O(log n)', 'O(1)', 'O(n²)'],
+    correct: 2,
+    feedback: 'Self-attention directly connects all pairs of positions in a constant number of operations — O(1) path length. This is its key advantage over RNNs (O(n)) for long-range dependencies.'
+  },
+  {
+    q: 'Why did the paper choose sinusoidal positional encodings over learned embeddings?',
+    opts: [
+      'Sinusoidal encodings perform significantly better on all benchmarks',
+      'They require fewer parameters',
+      'They may allow the model to extrapolate to longer sequences than seen during training',
+      'They are faster to compute than learned embeddings'
+    ],
+    correct: 2,
+    feedback: 'The two approaches gave nearly identical results (Table 3 row E). Sinusoidal was chosen because it hypothetically allows extrapolation to longer sequences since each position is a deterministic function.'
+  },
+  {
+    q: 'What does the masking in the decoder\'s self-attention prevent?',
+    opts: [
+      'The decoder from attending to padding tokens',
+      'Positions from attending to subsequent (future) positions, preserving auto-regression',
+      'Cross-attention from being applied before self-attention',
+      'The decoder from attending to encoder output'
+    ],
+    correct: 1,
+    feedback: 'Masked self-attention sets illegal (future) positions to −∞ before softmax, so predictions for position i can only depend on outputs at positions < i. This preserves the auto-regressive property.'
+  },
+  {
+    q: 'The Transformer was trained on 8 P100 GPUs. How long did training take for the base model?',
+    opts: ['2 hours', '12 hours', '3.5 days', '1 week'],
+    correct: 1,
+    feedback: 'The base model trained for 100K steps at ~0.4s/step, totaling ~12 hours. The big model trained for 300K steps (1.0s/step) = 3.5 days.'
+  },
+  {
+    q: 'Which regularization technique was found to be "very helpful in avoiding overfitting" according to the ablation study?',
+    opts: ['L2 weight decay', 'Label smoothing', 'Dropout', 'Batch normalization'],
+    correct: 2,
+    feedback: 'From Table 3 row (D): removing dropout (P_drop = 0.0) significantly hurt perplexity (5.77 vs 4.92). The paper notes "dropout is very helpful in avoiding overfitting".'
+  }
+];
+
+let qIndex = 0;
+let score = 0;
+let answered = false;
+
+function renderQuestion() {
+  const q = QUIZ[qIndex];
+  document.getElementById('q-num').textContent = qIndex + 1;
+  document.getElementById('q-score').textContent = score;
+  document.getElementById('q-text').textContent = q.q;
+  const opts = document.getElementById('q-options');
+  opts.innerHTML = '';
+  q.opts.forEach((o, i) => {
+    const el = document.createElement('div');
+    el.className = 'quiz-option';
+    el.innerHTML = `<span style="font-family:var(--mono); font-size:11px; color:var(--text3); min-width:16px;">${String.fromCharCode(65+i)}</span> ${o}`;
+    el.onclick = () => answerQuestion(i, el);
+    opts.appendChild(el);
+  });
+  document.getElementById('q-feedback').style.display = 'none';
+  document.getElementById('q-next').style.display = 'none';
+  document.getElementById('q-restart').style.display = 'none';
+  answered = false;
+}
+
+function answerQuestion(idx, el) {
+  if (answered) return;
+  answered = true;
+  const q = QUIZ[qIndex];
+  const allOpts = document.querySelectorAll('.quiz-option');
+  allOpts.forEach(o => o.classList.add('disabled'));
+  if (idx === q.correct) {
+    el.classList.add('correct');
+    score++;
+    document.getElementById('q-score').textContent = score;
+  } else {
+    el.classList.add('wrong');
+    allOpts[q.correct].classList.add('correct');
+  }
+  const fb = document.getElementById('q-feedback');
+  fb.textContent = q.feedback;
+  fb.style.display = 'block';
+  fb.className = idx === q.correct ? 'info-box green' : 'info-box coral';
+
+  if (qIndex < QUIZ.length - 1) {
+    document.getElementById('q-next').style.display = 'inline-flex';
+  } else {
+    const total = QUIZ.length;
+    document.getElementById('q-feedback').textContent += `\n\nQuiz complete! You scored ${score}/${total} (${Math.round(score/total*100)}%).`;
+    document.getElementById('q-restart').style.display = 'inline-flex';
+  }
+}
+
+function nextQuestion() {
+  qIndex++;
+  renderQuestion();
+}
+
+function restartQuiz() {
+  qIndex = 0;
+  score = 0;
+  renderQuestion();
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  buildAttentionPage();
+  updateHeads();
+  renderQuestion();
+  renderBLEU();
+  updateLR();
+
+  // Lazy init for pages not yet shown
+  document.getElementById('dk').oninput = updateDk;
+  updateDk();
+});
+
+window.addEventListener('resize', () => {
+  const pe = document.getElementById('page-positional');
+  if (pe && pe.classList.contains('active')) drawPE();
+  const cx = document.getElementById('page-complexity');
+  if (cx && cx.classList.contains('active')) updateComplexity();
+  const sb = document.getElementById('page-sandbox');
+  if (sb && sb.classList.contains('active')) updateLR();
+});
+</script>
+</body>
+</html>
